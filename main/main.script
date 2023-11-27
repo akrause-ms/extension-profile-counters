@@ -29,4 +29,7 @@ function update(self, dt)
 	prn("---------------------------------------------------\n");
 	prn("Counters:\n")
 	print_table(counters)
+
+	prn("Script.LuaMem: ")
+	prn(tostring(profile.get_property("Script", "LuaMem")) .. "\n")
 end

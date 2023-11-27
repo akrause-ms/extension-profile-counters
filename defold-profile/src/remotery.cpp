@@ -197,6 +197,62 @@ RMT_API void _rmt_PropertyFrameResetAll()
     PropertyFrameReset(&g_Context.m_RootProperty);
 }
 
+static int LuaPushPropertyValue(lua_State* L, rmtProperty* property)
+{
+    switch (property->type)
+    {
+        case RMT_PropertyType_rmtBool:  lua_pushboolean(L, property->lastFrameValue.Bool); break;
+
+        case RMT_PropertyType_rmtS32:   lua_pushinteger(L, property->lastFrameValue.S32); break;
+        case RMT_PropertyType_rmtU32:   lua_pushinteger(L, property->lastFrameValue.U32); break;
+        case RMT_PropertyType_rmtS64:   lua_pushinteger(L, property->lastFrameValue.S64); break;
+        case RMT_PropertyType_rmtU64:   lua_pushinteger(L, property->lastFrameValue.U64); break;
+
+        case RMT_PropertyType_rmtF32:   lua_pushnumber(L, property->lastFrameValue.F32); break;
+        case RMT_PropertyType_rmtF64:   lua_pushnumber(L, property->lastFrameValue.F64); break;
+
+        default: lua_pushnil(L); break;
+    }
+    return 1;
+}
+
+static int rmt_GetProperty(lua_State* L, rmtProperty* first_property)
+{
+    rmtProperty* property = first_property;
+    rmtProperty* found = first_property;
+
+    while (lua_gettop(L) > 0)
+    {
+        auto key = lua_tostring(L, 1);
+        lua_remove(L, 1);
+
+        found = NULL;
+        for (rmtProperty* it = property; it != NULL; it = it->nextSibling)
+        {
+            const char* name = it->name;
+            if (strncmp(name, "rmtp_", 5) == 0)
+            {
+                name = name + 5;
+            }
+            if (strcmp(name, key) != 0)
+            {
+                continue;
+            }
+            found = it;
+            property = it->firstChild;
+            break;
+        }
+        if (!found)
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+    }
+
+    LuaPushPropertyValue(L, found);
+    return 1;
+}
+
 static int rmt_PropertyCollect(lua_State* L, rmtProperty* first_property)
 {
     lua_createtable(L, 0, 0); // we don't know how many items beforehand
@@ -210,34 +266,20 @@ static int rmt_PropertyCollect(lua_State* L, rmtProperty* first_property)
             name = name + 5;
         }
 
-        switch (property->type)
+        if (property->firstChild)
         {
-            case RMT_PropertyType_rmtGroup:
-                if (property->firstChild)
-                {
-                    lua_pushstring(L, name);
-                    rmt_PropertyCollect(L, property->firstChild);
-                    lua_settable(L, -3);
-                }
-                continue;
-                break;
-
-            case RMT_PropertyType_rmtBool:  lua_pushboolean(L, property->lastFrameValue.Bool); break;
-            case RMT_PropertyType_rmtS32:   lua_pushinteger(L, property->lastFrameValue.S32); break;
-            case RMT_PropertyType_rmtU32:   lua_pushinteger(L, property->lastFrameValue.U32); break;
-            case RMT_PropertyType_rmtS64:   lua_pushinteger(L, property->lastFrameValue.S64); break;
-            case RMT_PropertyType_rmtU64:   lua_pushinteger(L, property->lastFrameValue.U64); break;
-
-            case RMT_PropertyType_rmtF32:   lua_pushnumber(L, property->lastFrameValue.F32); break;
-            case RMT_PropertyType_rmtF64:   lua_pushnumber(L, property->lastFrameValue.F64); break;
-
-
-            default:
-                continue;
-                break;
+            rmt_PropertyCollect(L, property->firstChild);
+            lua_pushinteger(L, 1);
         }
 
+        LuaPushPropertyValue(L, property);
+
+        if (property->firstChild)
+        {
+            lua_settable(L, -3);
+        }
         lua_setfield(L, -2, name);
+
 
         // Debug prints
         // switch (property->type)
@@ -253,6 +295,12 @@ static int rmt_PropertyCollect(lua_State* L, rmtProperty* first_property)
         // }
     }
     return 1;
+}
+
+RMT_API int rmt_GetProperty(lua_State* L)
+{
+    DM_MUTEX_SCOPED_LOCK(g_Context.m_Mutex);
+    return rmt_GetProperty(L, g_Context.m_RootProperty.firstChild);
 }
 
 RMT_API int rmt_PropertyCollect(lua_State* L)

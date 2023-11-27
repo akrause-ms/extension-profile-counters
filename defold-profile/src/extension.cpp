@@ -15,16 +15,23 @@ DM_PROPERTY_U32(rmtp_TestExtFrames, 0, NoFlags, "frame count", &rmtp_TestExt);
 void rmt_DefoldInitialize();
 void rmt_DefoldFinalize();
 int rmt_PropertyCollect(lua_State* L);
+int rmt_GetProperty(lua_State* L);
 
 static int GetProfileProperties(lua_State* L)
 {
     return rmt_PropertyCollect(L);
 }
 
+static int GetProfileProperty(lua_State* L)
+{
+    return rmt_GetProperty(L);
+}
+
 // Functions exposed to Lua
 static const luaL_reg Module_methods[] =
 {
     {"get_properties", GetProfileProperties},
+    {"get_property", GetProfileProperty},
     {0, 0}
 };
 
